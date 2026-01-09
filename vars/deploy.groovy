@@ -2,9 +2,12 @@ def call() {
     echo "Starting deployment..."
 
     sh """
-        echo "Stopping any container using port 8000..."
+        echo "Stopping container using port 8000 (if any)..."
         docker ps -q --filter "publish=8000" | xargs -r docker stop
         docker ps -aq --filter "publish=8000" | xargs -r docker rm
+
+        echo "Removing existing notes-app container (if any)..."
+        docker rm -f notes-app || true
 
         echo "Running new container..."
         docker run -d \
