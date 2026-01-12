@@ -148,52 +148,43 @@ Repository URL: https://github.com/himanshugohil18/jenkins-shared-libraries.git
 
 ```groovy
 @Library('Shared') _
-
 pipeline {
-    agent any
+    agent { label 'vinod' }
 
     stages {
 
-        stage('Hello') {
+        stage("Code Clone") {
             steps {
-                hello()
-            }
-        }
-
-        stage('Clone') {
-            steps {
+                sh "whoami"
                 clone(
-                    repoUrl: 'https://github.com/username/repo.git',
-                    branch: 'main'
+                    "https://github.com/himanshugohil18/django-notes-app.git",
+                    "main"
                 )
             }
         }
 
-        stage('Docker Build') {
+        stage("Code Build") {
             steps {
                 docker_build(
-                    imageName: 'my-app',
-                    tag: 'latest'
+                    imageName: "notes-app",
+                    tag: "latest"
                 )
             }
         }
 
-        stage('Docker Push') {
+        stage("Push to DockerHub") {
             steps {
                 docker_push(
-                    imageName: 'my-app',
-                    tag: 'latest',
-                    dockerCredId: 'dockerhub-creds'
+                    imageName: "notes-app",
+                    imageTag: "latest",
+                    credentials: "dockerHubCred"
                 )
             }
         }
 
-        stage('Deploy') {
+        stage("Deploy") {
             steps {
-                deploy(
-                    appName: 'my-app',
-                    environment: 'production'
-                )
+                deploy()
             }
         }
     }
