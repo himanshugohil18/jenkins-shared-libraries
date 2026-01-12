@@ -37,10 +37,9 @@ Clones a Git repository.
 
 Usage:
 ```groovy
-clone(
-    repoUrl: 'https://github.com/username/repo.git',
-    branch: 'main'
-)
+def call(String url, String branch){
+  git url: "${url}", branch: "${branch}"
+}
 ```
 
 ---
