@@ -7,8 +7,9 @@ These libraries help standardize CI/CD pipelines, reduce duplicated code, and si
 The shared library provides reusable steps for:
 
 - Git repository cloning
-- Docker image build & push
-- Running tests
+- Docker image build
+- Docker image push
+- Unit testing
 - Security scanning with Trivy
 - Generating build reports
 - Updating Kubernetes manifests
@@ -43,9 +44,15 @@ The **vars/** directory contains global pipeline functions that can be directly 
 
 ## hello.groovy
 
-Used to test whether the shared library is successfully loaded.
+Simple function used to verify that the shared library is loaded correctly.
 
-Example:
+```groovy
+def call(){
+    echo "Hello Dosto"
+}
+```
+
+Usage:
 
 ```groovy
 hello()
@@ -53,13 +60,19 @@ hello()
 
 ---
 
-# 📦 CI/CD Pipeline Functions
+# 📦 Git Operations
 
 ## clone.groovy
 
-Clones a Git repository.
+Clones a Git repository and branch.
 
-Example:
+```groovy
+def call(String url, String branch){
+    git url: "${url}", branch: "${branch}"
+}
+```
+
+Usage:
 
 ```groovy
 clone(
@@ -70,11 +83,29 @@ clone(
 
 ---
 
+# 🐳 Docker Operations
+
 ## docker_build.groovy
 
 Builds a Docker image.
 
-Example:
+```groovy
+def call(Map config = [:]) {
+
+    def imageName = config.imageName ?: error("Image name is required")
+    def imageTag = config.imageTag ?: 'latest'
+    def dockerfile = config.dockerfile ?: 'Dockerfile'
+    def context = config.context ?: '.'
+
+    echo "Building Docker image: ${imageName}:${imageTag} using ${dockerfile}"
+
+    sh """
+        docker build -t ${imageName}:${imageTag} -t ${imageName}:latest -f ${dockerfile} ${context}
+    """
+}
+```
+
+Usage:
 
 ```groovy
 docker_build(
@@ -87,81 +118,39 @@ docker_build(
 
 ## docker_push.groovy
 
-Pushes the built Docker image to a container registry.
+Pushes the Docker image to Docker Hub.
 
-Example:
+```groovy
+def call(Map config = [:]) {
+
+    def imageName = config.imageName ?: error("Image name is required")
+    def imageTag = config.imageTag ?: 'latest'
+    def credentials = config.credentials ?: 'docker-hub-credentials'
+
+    echo "Pushing Docker image: ${imageName}:${imageTag}"
+
+    withCredentials([usernamePassword(
+        credentialsId: credentials,
+        usernameVariable: 'DOCKER_USERNAME',
+        passwordVariable: 'DOCKER_PASSWORD'
+    )]) {
+
+        sh """
+            echo "\$DOCKER_PASSWORD" | docker login -u "\$DOCKER_USERNAME" --password-stdin
+            docker push ${imageName}:${imageTag}
+            docker push ${imageName}:latest
+        """
+    }
+}
+```
+
+Usage:
 
 ```groovy
 docker_push(
     imageName: "notes-app",
     imageTag: "latest",
-    credentials: "dockerHubCred"
-)
-```
-
----
-
-# 🧪 Testing & Quality
-
-## run_tests.groovy
-
-Runs project test cases before building the application.
-
-Example:
-
-```groovy
-run_tests()
-```
-
----
-
-## generate_reports.groovy
-
-Generates build or test reports.
-
-Example:
-
-```groovy
-generate_reports()
-```
-
----
-
-# 🔐 Security Scanning
-
-## trivy_scan.groovy
-
-Runs vulnerability scanning using Trivy.
-
-Example:
-
-```groovy
-trivy_scan(
-  imageName: "notes-app",
-  imageTag: "latest"
-)
-```
-
-Detects:
-
-- OS vulnerabilities
-- Library vulnerabilities
-- Misconfigurations
-
----
-
-# ☸ Kubernetes Integration
-
-## update_k8s_manifests.groovy
-
-Updates the image tag in Kubernetes manifest files.
-
-Example:
-
-```groovy
-update_k8s_manifests(
-  imageName: "notes-app",
-  imageTag: "latest"
+    credentials: "docker-hub-credentials"
 )
 ```
 
@@ -173,37 +162,214 @@ update_k8s_manifests(
 
 Deploys the application container.
 
-Example:
+```groovy
+def call() {
+
+    echo "Starting deployment..."
+
+    sh """
+
+        echo "Stopping container using port 8000 (if any)..."
+        docker ps -q --filter "publish=8000" | xargs -r docker stop
+        docker ps -aq --filter "publish=8000" | xargs -r docker rm
+
+        echo "Removing existing notes-app container (if any)..."
+        docker rm -f notes-app || true
+
+        echo "Running new container..."
+        docker run -d \
+        --name notes-app \
+        -p 8000:8000 \
+        himanshugohil18/notes-app:latest
+
+    """
+
+    echo "Deployment completed successfully"
+}
+```
+
+Usage:
 
 ```groovy
 deploy()
 ```
 
-Deployment flow:
+---
 
-1. Stop existing container
-2. Remove old container
-3. Run new container with updated image
+# 🧪 Testing
+
+## run_tests.groovy
+
+Runs unit tests before building the application.
+
+```groovy
+def call() {
+
+    echo "Running unit tests..."
+
+    // Add your unit test commands here
+    // Example:
+    // sh "npm test"
+    // sh "mvn test"
+
+    echo "Unit tests completed successfully"
+}
+```
+
+Usage:
+
+```groovy
+run_tests()
+```
+
+---
+
+# 🔐 Security Scanning
+
+## trivy_scan.groovy
+
+Scans the repository using Trivy for vulnerabilities.
+
+```groovy
+def call(){
+    sh "trivy fs ."
+}
+```
+
+Usage:
+
+```groovy
+trivy_scan()
+```
+
+---
+
+# 📊 Build Reports
+
+## generate_reports.groovy
+
+Generates a build report and archives it.
+
+```groovy
+def call(Map config = [:]) {
+
+    def projectName = config.projectName ?: 'Project'
+    def imageName = config.imageName ?: ''
+    def imageTag = config.imageTag ?: ''
+
+    echo "Generating build report..."
+
+    sh "mkdir -p reports"
+
+    sh """
+        echo "===== ${projectName} Build Report =====" > reports/build-report.txt
+        echo "Generated: \$(date)" >> reports/build-report.txt
+        echo "" >> reports/build-report.txt
+        echo "Build Number: ${env.BUILD_NUMBER}" >> reports/build-report.txt
+        echo "Docker Images: ${imageName}" >> reports/build-report.txt
+        echo "Image Tag: ${imageTag}" >> reports/build-report.txt
+        echo "Build Status: ${currentBuild.result ?: 'SUCCESS'}" >> reports/build-report.txt
+        echo "Build URL: ${env.BUILD_URL}" >> reports/build-report.txt
+    """
+
+    archiveArtifacts artifacts: 'reports/*', allowEmptyArchive: true
+}
+```
+
+Usage:
+
+```groovy
+generate_reports(
+    projectName: "Notes App",
+    imageName: "notes-app",
+    imageTag: "latest"
+)
+```
+
+---
+
+# ☸ Kubernetes Integration
+
+## update_k8s_manifests.groovy
+
+Updates Kubernetes manifest files with new image tags and pushes the changes to Git.
+
+```groovy
+#!/usr/bin/env groovy
+
+def call(Map config = [:]) {
+
+    def imageTag = config.imageTag ?: error("Image tag is required")
+    def manifestsPath = config.manifestsPath ?: 'kubernetes'
+    def gitCredentials = config.gitCredentials ?: 'github-credentials'
+    def gitUserName = config.gitUserName ?: 'Jenkins CI'
+    def gitUserEmail = config.gitUserEmail ?: 'jenkins@example.com'
+
+    echo "Updating Kubernetes manifests with image tag: ${imageTag}"
+
+    withCredentials([usernamePassword(
+        credentialsId: gitCredentials,
+        usernameVariable: 'GIT_USERNAME',
+        passwordVariable: 'GIT_PASSWORD'
+    )]) {
+
+        sh """
+            git config user.name "${gitUserName}"
+            git config user.email "${gitUserEmail}"
+
+            sed -i "s|image: trainwithshubham/easyshop-app:.*|image: trainwithshubham/easyshop-app:${imageTag}|g" ${manifestsPath}/08-easyshop-deployment.yaml
+
+            if [ -f "${manifestsPath}/12-migration-job.yaml" ]; then
+                sed -i "s|image: trainwithshubham/easyshop-migration:.*|image: trainwithshubham/easyshop-migration:${imageTag}|g" ${manifestsPath}/12-migration-job.yaml
+            fi
+
+            if [ -f "${manifestsPath}/10-ingress.yaml" ]; then
+                sed -i "s|host: .*|host: easyshop.letsdeployit.com|g" ${manifestsPath}/10-ingress.yaml
+            fi
+
+            if git diff --quiet; then
+                echo "No changes to commit"
+            else
+                git add ${manifestsPath}/*.yaml
+                git commit -m "Update image tags to ${imageTag} and ensure correct domain [ci skip]"
+
+                git remote set-url origin https://\${GIT_USERNAME}:\${GIT_PASSWORD}@github.com/LondheShubham153/tws-e-commerce-app.git
+                git push origin HEAD:\${GIT_BRANCH}
+            fi
+        """
+    }
+}
+```
+
+Usage:
+
+```groovy
+update_k8s_manifests(
+    imageTag: "v1.0.5",
+    manifestsPath: "kubernetes",
+    gitCredentials: "github-credentials"
+)
+```
 
 ---
 
 # 🔧 Jenkins Configuration
 
-## Step 1: Add Shared Library
+## Step 1 — Add Shared Library
 
-Go to:
+Go to Jenkins dashboard:
 
 ```
 Manage Jenkins → Configure System → Global Pipeline Libraries
 ```
 
-Add the library:
+Add:
 
 ```
 Name: Shared
 Default Version: main
 Retrieval Method: Modern SCM
-Repository URL:
+Repository:
 https://github.com/himanshugohil18/jenkins-shared-libraries.git
 ```
 
@@ -214,6 +380,7 @@ https://github.com/himanshugohil18/jenkins-shared-libraries.git
 ```groovy
 @Library('Shared') _
 pipeline {
+
     agent any
 
     stages {
@@ -244,19 +411,16 @@ pipeline {
 
         stage("Security Scan") {
             steps {
-                trivy_scan(
-                    imageName: "notes-app",
-                    imageTag: "latest"
-                )
+                trivy_scan()
             }
         }
 
-        stage("Push Image") {
+        stage("Push Docker Image") {
             steps {
                 docker_push(
                     imageName: "notes-app",
                     imageTag: "latest",
-                    credentials: "dockerHubCred"
+                    credentials: "docker-hub-credentials"
                 )
             }
         }
@@ -275,21 +439,11 @@ pipeline {
 
 # 🎯 Why Jenkins Shared Libraries?
 
-- Reusable CI/CD pipeline code
-- Cleaner Jenkinsfiles
-- Centralized pipeline management
-- Scalable DevOps workflows
-- Industry best practice
-
----
-
-# 🚀 Future Enhancements
-
-- Helm deployment support
-- SonarQube integration
-- Slack notifications
-- Terraform automation
-- GitOps workflow with ArgoCD
+- Reusable CI/CD pipeline code  
+- Cleaner Jenkinsfiles  
+- Standardized DevOps workflows  
+- Centralized pipeline management  
+- Industry best practice  
 
 ---
 
