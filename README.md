@@ -1,161 +1,225 @@
-# Jenkins Shared Libraries 🚀
+# 🚀 Jenkins Shared Libraries
 
-This repository contains reusable Jenkins Shared Library functions written in Groovy.  
-These libraries help standardize CI/CD pipelines and reduce duplication across Jenkinsfiles.
+This repository contains reusable Jenkins Shared Library functions written in Groovy.
+
+These libraries help standardize CI/CD pipelines, reduce duplicated code, and simplify Jenkins pipeline development across multiple projects.
+
+The shared library provides reusable steps for:
+
+- Git repository cloning
+- Docker image build & push
+- Running tests
+- Security scanning with Trivy
+- Generating build reports
+- Updating Kubernetes manifests
+- Application deployment
 
 ---
 
-## 📁 Repository Structure
+# 📁 Repository Structure
 
 ```
-jenkins-shared-libraries/
-├── vars/
+jenkins-shared-libraries
+│
+├── vars
 │   ├── clone.groovy
 │   ├── docker_build.groovy
 │   ├── docker_push.groovy
 │   ├── deploy.groovy
+│   ├── run_tests.groovy
+│   ├── trivy_scan.groovy
+│   ├── generate_reports.groovy
+│   ├── update_k8s_manifests.groovy
 │   └── hello.groovy
+│
 └── README.md
 ```
 
+The **vars/** directory contains global pipeline functions that can be directly used inside a Jenkins pipeline.
+
 ---
 
-## 📌 Shared Library Functions
+# 📌 Shared Library Functions
 
-### hello.groovy
-Prints a greeting message to verify library integration.
+## hello.groovy
 
-Usage:
+Used to test whether the shared library is successfully loaded.
+
+Example:
+
 ```groovy
 hello()
 ```
 
 ---
 
-### clone.groovy
+# 📦 CI/CD Pipeline Functions
+
+## clone.groovy
+
 Clones a Git repository.
 
-Usage:
+Example:
+
 ```groovy
-def call(String url, String branch){
-  git url: "${url}", branch: "${branch}"
-}
+clone(
+ "https://github.com/your-repo/project.git",
+ "main"
+)
 ```
 
 ---
 
-### docker_build.groovy
+## docker_build.groovy
+
 Builds a Docker image.
 
-Usage:
+Example:
+
 ```groovy
-def call(Map config = [:]) {
-    def imageName = config.imageName ?: error("Image name is required")
-    def imageTag = config.imageTag ?: 'latest'
-    def dockerfile = config.dockerfile ?: 'Dockerfile'
-    def context = config.context ?: '.'
-    
-    echo "Building Docker image: ${imageName}:${imageTag} using ${dockerfile}"
-    
-    sh """
-        docker build -t ${imageName}:${imageTag} -t ${imageName}:latest -f ${dockerfile} ${context}
-    """
-}
+docker_build(
+    imageName: "notes-app",
+    imageTag: "latest"
+)
 ```
 
 ---
 
-### docker_push.groovy
-Pushes Docker image to Docker Hub or any registry.
+## docker_push.groovy
 
-Prerequisite: Docker credentials must be configured in Jenkins.
+Pushes the built Docker image to a container registry.
 
-Usage:
+Example:
+
 ```groovy
-def call(Map config = [:]) {
-
-    def imageName = config.imageName ?: error("Image name is required")
-    def imageTag  = config.imageTag ?: 'latest'
-    def credentials = config.credentials ?: 'dockerHubCred'  // ✅ FIXED
-
-    echo "Pushing Docker image: ${imageName}:${imageTag}"
-
-    withCredentials([
-        usernamePassword(
-            credentialsId: credentials,
-            usernameVariable: 'DOCKER_USERNAME',
-            passwordVariable: 'DOCKER_PASSWORD'
-        )
-    ]) {
-        sh """
-            echo "\$DOCKER_PASSWORD" | docker login -u "\$DOCKER_USERNAME" --password-stdin
-            docker tag ${imageName}:${imageTag} \$DOCKER_USERNAME/${imageName}:${imageTag}
-            docker push \$DOCKER_USERNAME/${imageName}:${imageTag}
-        """
-    }
-}
+docker_push(
+    imageName: "notes-app",
+    imageTag: "latest",
+    credentials: "dockerHubCred"
+)
 ```
 
 ---
 
-### deploy.groovy
-Deploys the application (extendable for Docker, EC2, Kubernetes).
+# 🧪 Testing & Quality
 
-Usage:
+## run_tests.groovy
+
+Runs project test cases before building the application.
+
+Example:
+
 ```groovy
-def call() {
-    echo "Starting deployment..."
-
-    sh """
-        echo "Stopping container using port 8000 (if any)..."
-        docker ps -q --filter "publish=8000" | xargs -r docker stop
-        docker ps -aq --filter "publish=8000" | xargs -r docker rm
-
-        echo "Removing existing notes-app container (if any)..."
-        docker rm -f notes-app || true
-
-        echo "Running new container..."
-        docker run -d \
-          --name notes-app \
-          -p 8000:8000 \
-          himanshugohil18/notes-app:latest
-    """
-
-    echo "Deployment completed successfully"
-}
+run_tests()
 ```
 
 ---
 
-## 🔧 Jenkins Configuration
+## generate_reports.groovy
 
-### Step 1: Add Shared Library
+Generates build or test reports.
+
+Example:
+
+```groovy
+generate_reports()
+```
+
+---
+
+# 🔐 Security Scanning
+
+## trivy_scan.groovy
+
+Runs vulnerability scanning using Trivy.
+
+Example:
+
+```groovy
+trivy_scan(
+  imageName: "notes-app",
+  imageTag: "latest"
+)
+```
+
+Detects:
+
+- OS vulnerabilities
+- Library vulnerabilities
+- Misconfigurations
+
+---
+
+# ☸ Kubernetes Integration
+
+## update_k8s_manifests.groovy
+
+Updates the image tag in Kubernetes manifest files.
+
+Example:
+
+```groovy
+update_k8s_manifests(
+  imageName: "notes-app",
+  imageTag: "latest"
+)
+```
+
+---
+
+# 🚀 Deployment
+
+## deploy.groovy
+
+Deploys the application container.
+
+Example:
+
+```groovy
+deploy()
+```
+
+Deployment flow:
+
+1. Stop existing container
+2. Remove old container
+3. Run new container with updated image
+
+---
+
+# 🔧 Jenkins Configuration
+
+## Step 1: Add Shared Library
 
 Go to:
-Manage Jenkins → Configure System → Global Pipeline Libraries
 
-Add:
+```
+Manage Jenkins → Configure System → Global Pipeline Libraries
+```
+
+Add the library:
 
 ```
 Name: Shared
 Default Version: main
-Repository URL: https://github.com/himanshugohil18/jenkins-shared-libraries.git
+Retrieval Method: Modern SCM
+Repository URL:
+https://github.com/himanshugohil18/jenkins-shared-libraries.git
 ```
 
 ---
 
-### Step 2: Jenkinsfile Example
+# 🧾 Example Jenkinsfile
 
 ```groovy
 @Library('Shared') _
 pipeline {
-    agent { label 'vinod' }
+    agent any
 
     stages {
 
-        stage("Code Clone") {
+        stage("Clone Repository") {
             steps {
-                sh "whoami"
                 clone(
                     "https://github.com/himanshugohil18/django-notes-app.git",
                     "main"
@@ -163,16 +227,31 @@ pipeline {
             }
         }
 
-        stage("Code Build") {
+        stage("Run Tests") {
+            steps {
+                run_tests()
+            }
+        }
+
+        stage("Build Docker Image") {
             steps {
                 docker_build(
                     imageName: "notes-app",
-                    tag: "latest"
+                    imageTag: "latest"
                 )
             }
         }
 
-        stage("Push to DockerHub") {
+        stage("Security Scan") {
+            steps {
+                trivy_scan(
+                    imageName: "notes-app",
+                    imageTag: "latest"
+                )
+            }
+        }
+
+        stage("Push Image") {
             steps {
                 docker_push(
                     imageName: "notes-app",
@@ -187,35 +266,38 @@ pipeline {
                 deploy()
             }
         }
+
     }
 }
 ```
 
 ---
 
-## 🧠 Why Jenkins Shared Libraries?
+# 🎯 Why Jenkins Shared Libraries?
 
-- Reusable CI/CD logic
-- Clean Jenkinsfiles
+- Reusable CI/CD pipeline code
+- Cleaner Jenkinsfiles
 - Centralized pipeline management
 - Scalable DevOps workflows
 - Industry best practice
 
 ---
 
-## 🚀 Future Enhancements
+# 🚀 Future Enhancements
 
-- Kubernetes deployments
-- Helm charts
-- Terraform integration
+- Helm deployment support
+- SonarQube integration
 - Slack notifications
-- Security scanning (Trivy, SonarQube)
+- Terraform automation
+- GitOps workflow with ArgoCD
 
 ---
 
-## 👨‍💻 Author
+# 👨‍💻 Author
 
 Himanshu Gohil  
-DevOps | CI/CD | Cloud | Automation  
 
-GitHub: https://github.com/himanshugohil18
+DevOps | Cloud | Kubernetes | CI/CD  
+
+GitHub  
+https://github.com/himanshugohil18
